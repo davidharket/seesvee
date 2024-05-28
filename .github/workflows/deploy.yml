@@ -10,26 +10,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Install dependencies
-      run: npm install
+      - name: Test SSH connection
+        run: ssh -o StrictHostKeyChecking=no ziprnorge@35.190.205.208 "echo 'SSH connection successful'"
 
-    - name: Build project
-      run: npm run build
-
-    - name: Deploy to server
-      uses: easingthemes/ssh-deploy@v2.1.5
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        ARGS: "-rltgoDzvO"
-        SOURCE: "build/"
-        REMOTE_HOST: "35.190.205.208"
-        REMOTE_USER: "ziprnorge"
-        TARGET: "/var/www/csv-splitter-frontend/"
+      - name: Deploy code
+        env:
+          NODE_OPTIONS: --openssl-legacy-provider
+        run: |
+          ssh -o StrictHostKeyChecking=no ziprnorge@35.190.205.208 '
+          export NODE_OPTIONS=--openssl-legacy-provider &&
+          git config --global --add safe.directory /var/www/seesvee &&
+          cd /var/www/seesvee &&
+          git pull &&
+          npm install &&
+          npm run build &&
+          pm2 stop seesvee-backend || true &&
+          pm2 delete seesvee-backend || true &&
+          pm2 start server.js --name seesvee-backend
+          '
